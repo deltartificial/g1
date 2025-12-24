@@ -77,44 +77,38 @@ def get_train_cfg(exp_name, max_iterations):
 
 def get_cfgs():
     """
-    Environment and reward configuration for G1 bipedal walking.
-
-    Key considerations for bipeds vs quadrupeds:
-    - Higher base height (0.75m vs 0.3m for Go2)
-    - Tighter termination thresholds (less stable)
-    - Emphasis on orientation rewards (critical for balance)
-    - Gait phase observation for walking pattern
+    Phase 2: Full Body Control (29 DOFs).
+    Natural walking with arm swing.
     """
-    # Path to G1 robot MJCF
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     robot_path = os.path.join(base_dir, "..", "unitree_mujoco", "unitree_robots", "g1", "g1_29dof.xml")
 
     env_cfg = {
-        "num_actions": 12,  # Leg joints only (upper body PD-locked)
+        "num_actions": 29,  # Full body control
         "robot_path": robot_path,
 
-        # PD gains for legs (RL-controlled)
-        "kp": 150.0,
-        "kd": 15.0,
+        # Differentiated PD gains
+        "leg_kp": 150.0,
+        "leg_kd": 15.0,
+        "waist_kp": 200.0,  # Rigid core
+        "waist_kd": 20.0,
+        "arm_kp": 50.0,     # Soft arms for swing
+        "arm_kd": 5.0,
 
-        # PD gains for upper body (locked for balance)
-        "upper_body_kp": 300.0,  # Higher stiffness to prevent torso collapse
-        "upper_body_kd": 30.0,
+        # Termination (slightly relaxed for upper body motion)
+        "termination_if_roll_greater_than": 0.4,
+        "termination_if_pitch_greater_than": 0.4,
+        "termination_if_height_lower_than": 0.55,
 
-        # Termination conditions - TIGHTER for faster learning
-        "termination_if_roll_greater_than": 0.3,   # ~17 degrees (was 0.5)
-        "termination_if_pitch_greater_than": 0.3,  # ~17 degrees (was 0.5)
-        "termination_if_height_lower_than": 0.5,   # Higher threshold (was 0.4)
-
-        # Base initialization - lower with bent knees (KNEES_BENT_KEYFRAME)
-        "base_init_pos": [0.0, 0.0, 0.76],  # Lower for stability (was 0.793)
-        "base_init_quat": [1.0, 0.0, 0.0, 0.0],  # wxyz format
+        # Initialization
+        "base_init_pos": [0.0, 0.0, 0.76],
+        "base_init_quat": [1.0, 0.0, 0.0, 0.0],
 
         # Episode settings
         "episode_length_s": 20.0,
-        "resampling_time_s": 8.0,  # Longer for learning stable gait
+        "resampling_time_s": 4.0,
 
-        # Action scaling (conservative for bipeds)
+        # Action scaling
         "action_scale": 0.25,
         "simulate_action_latency": True,
         "clip_actions": 10.0,
@@ -125,8 +119,8 @@ def get_cfgs():
     }
 
     obs_cfg = {
-        # 3 + 3 + 3 + 12 + 12 + 12 + 2 = 47
-        "num_obs": 47,
+        # 3 ang_vel + 3 grav + 3 cmd + 2 phase + 29 pos + 29 vel + 29 actions = 98
+        "num_obs": 98,
         "obs_scales": {
             "lin_vel": 2.0,
             "ang_vel": 0.25,
@@ -136,41 +130,40 @@ def get_cfgs():
     }
 
     reward_cfg = {
-        "tracking_sigma": 0.25,  # Tighter tracking (was 0.5)
-        "base_height_target": 0.72,  # Lower target for bent-knee stance
+        "tracking_sigma": 0.25,
+        "base_height_target": 0.72,
 
         "reward_scales": {
-            # Primary: Velocity tracking
-            "tracking_lin_vel": 2.0,   # Increased for high-speed (was 1.5)
+            # Performance
+            "tracking_lin_vel": 1.5,
             "tracking_ang_vel": 0.5,
+            "alive": 1.0,
+            "feet_air_time": 1.0,
 
-            # Balance rewards
-            "alive": 1.0,              # Survival bonus
-            "orientation": -10.0,      # Tilt penalty
-            "base_height": -30.0,      # Height penalty
-            "ang_vel_xy": -0.1,        # Reduce wobbling
-            "lin_vel_z": -2.0,         # Reduce bouncing
+            # Style (NEW)
+            "arm_swing": 0.5,
+            "arm_close_to_body": 0.2,
 
-            # Gait quality
-            "feet_air_time": 1.0,      # Increased to lift feet higher (was 0.5)
-            "feet_spacing": 0.5,       # NEW: Anti-scissoring reward
-            "symmetry": 0.2,           # Symmetric leg motion
+            # Stability
+            "orientation": -5.0,
+            "base_height": -10.0,
+            "lin_vel_z": -2.0,
+            "ang_vel_xy": -0.1,
 
-            # Regularization - relaxed for high-speed
-            "action_rate": -0.005,     # Relaxed (was -0.01)
-            "similar_to_default": -0.1,
+            # Regularization
+            "torques": -0.00001,
+            "action_rate": -0.005,
             "dof_vel": -0.0001,
             "dof_acc": -1e-7,
-            "torques": -0.00001,       # Relaxed (was -0.0001)
         },
     }
 
     command_cfg = {
         "num_commands": 3,
-        # Walking velocity commands - extended for high-speed training
-        "lin_vel_x_range": [0.2, 1.0],  # Forward walking (was [0.2, 0.5])
-        "lin_vel_y_range": [-0.3, 0.3], # Lateral movement (was [-0.1, 0.1])
-        "ang_vel_range": [-0.5, 0.5],   # Turning (was [-0.2, 0.2])
+        # Reduced speed range initially for coordination learning
+        "lin_vel_x_range": [0.0, 0.6],
+        "lin_vel_y_range": [-0.2, 0.2],
+        "ang_vel_range": [-0.4, 0.4],
     }
 
     return env_cfg, obs_cfg, reward_cfg, command_cfg

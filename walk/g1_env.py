@@ -188,41 +188,37 @@ class G1Env:
         # Build scene with parallel envs
         self.scene.build(n_envs=num_envs)
 
-        # Get DOF indices for leg joints (RL-controlled)
-        # dofs_idx_local returns a list, we need to flatten it
+        # Full body control: merge all DOFs
+        self.ALL_DOF_NAMES = self.LEG_DOF_NAMES + self.UPPER_BODY_DOF_NAMES
+
         self.motor_dofs = []
-        for name in self.LEG_DOF_NAMES:
+        for name in self.ALL_DOF_NAMES:
             idx = self.robot.get_joint(name).dofs_idx_local
             if isinstance(idx, (list, tuple)):
                 self.motor_dofs.extend(idx)
             else:
                 self.motor_dofs.append(idx)
 
-        # Get DOF indices for upper body joints (PD-locked, not RL-controlled)
+        # No separate upper body control - everything is RL-controlled now
         self.upper_body_dofs = []
-        for name in self.UPPER_BODY_DOF_NAMES:
-            try:
-                idx = self.robot.get_joint(name).dofs_idx_local
-                if isinstance(idx, (list, tuple)):
-                    self.upper_body_dofs.extend(idx)
-                else:
-                    self.upper_body_dofs.append(idx)
-            except (KeyError, AttributeError):
-                print(f"[WARNING] Upper body joint not found: {name}")
 
-        # Set PD gains for legs (RL-controlled)
-        print(f"[INFO] Leg control: {len(self.motor_dofs)} DOFs")
-        self.robot.set_dofs_kp([env_cfg["kp"]] * len(self.motor_dofs), self.motor_dofs)
-        self.robot.set_dofs_kv([env_cfg["kd"]] * len(self.motor_dofs), self.motor_dofs)
+        # Differentiated PD gains: legs rigid, waist rigid, arms soft
+        kp_list = []
+        kd_list = []
+        for name in self.ALL_DOF_NAMES:
+            if name in self.LEG_DOF_NAMES:
+                kp_list.append(env_cfg.get("leg_kp", 150.0))
+                kd_list.append(env_cfg.get("leg_kd", 15.0))
+            elif "waist" in name:
+                kp_list.append(env_cfg.get("waist_kp", 200.0))
+                kd_list.append(env_cfg.get("waist_kd", 20.0))
+            else:  # Arms
+                kp_list.append(env_cfg.get("arm_kp", 50.0))
+                kd_list.append(env_cfg.get("arm_kd", 5.0))
 
-        # Set HIGHER PD gains for upper body (locked in place for balance)
-        # Waist needs high stiffness to prevent torso collapse
-        if self.upper_body_dofs:
-            upper_kp = env_cfg.get("upper_body_kp", 300.0)  # Higher than legs
-            upper_kd = env_cfg.get("upper_body_kd", 30.0)
-            self.robot.set_dofs_kp([upper_kp] * len(self.upper_body_dofs), self.upper_body_dofs)
-            self.robot.set_dofs_kv([upper_kd] * len(self.upper_body_dofs), self.upper_body_dofs)
-            print(f"[INFO] Upper body control: {len(self.upper_body_dofs)} DOFs with Kp={upper_kp}, Kd={upper_kd}")
+        print(f"[INFO] Full Body Control: {len(self.motor_dofs)} DOFs")
+        self.robot.set_dofs_kp(kp_list, self.motor_dofs)
+        self.robot.set_dofs_kv(kd_list, self.motor_dofs)
 
         # Reward functions
         self.reward_functions, self.episode_sums = dict(), dict()
@@ -269,20 +265,16 @@ class G1Env:
         self.base_pos = torch.zeros((self.num_envs, 3), device=self.device, dtype=gs.tc_float)
         self.base_quat = torch.zeros((self.num_envs, 4), device=self.device, dtype=gs.tc_float)
 
-        # Default joint positions for legs (RL-controlled)
-        self.default_dof_pos = torch.tensor(
-            [self.DEFAULT_LEG_ANGLES[name] for name in self.LEG_DOF_NAMES],
-            device=self.device,
-            dtype=gs.tc_float,
-        )
-
-        # Default joint positions for upper body (PD-locked)
-        self.default_upper_body_pos = torch.tensor(
-            [self.DEFAULT_UPPER_BODY_ANGLES.get(name, 0.0) for name in self.UPPER_BODY_DOF_NAMES
-             if name in self.DEFAULT_UPPER_BODY_ANGLES],
-            device=self.device,
-            dtype=gs.tc_float,
-        )
+        # Default joint positions for full body (29 DOFs)
+        default_pos_list = []
+        for name in self.ALL_DOF_NAMES:
+            if name in self.DEFAULT_LEG_ANGLES:
+                default_pos_list.append(self.DEFAULT_LEG_ANGLES[name])
+            elif name in self.DEFAULT_UPPER_BODY_ANGLES:
+                default_pos_list.append(self.DEFAULT_UPPER_BODY_ANGLES[name])
+            else:
+                default_pos_list.append(0.0)
+        self.default_dof_pos = torch.tensor(default_pos_list, device=self.device, dtype=gs.tc_float)
 
         # Gait phase for periodic walking pattern
         self.phase = torch.zeros((self.num_envs, 1), device=self.device, dtype=gs.tc_float)
@@ -302,11 +294,6 @@ class G1Env:
         exec_actions = self.last_actions if self.simulate_action_latency else self.actions
         target_dof_pos = exec_actions * self.env_cfg["action_scale"] + self.default_dof_pos
         self.robot.control_dofs_position(target_dof_pos, self.motor_dofs)
-
-        # CRITICAL: Lock upper body in default pose for balance
-        # Without this, torso/arms act as dead weight and cause forward fall
-        if self.upper_body_dofs:
-            self.robot.control_dofs_position(self.default_upper_body_pos, self.upper_body_dofs)
 
         self.scene.step()
 
@@ -539,3 +526,37 @@ class G1Env:
     def _reward_alive(self):
         """Small survival bonus."""
         return torch.ones(self.num_envs, device=self.device, dtype=gs.tc_float)
+
+    def _reward_arm_swing(self):
+        """
+        Encourage contralateral arm-leg synchronization.
+        Left arm swings with right leg, right arm swings with left leg.
+        Uses phase signal to guide sinusoidal shoulder motion.
+
+        DOF order: Legs(12) -> Waist(3) -> L_Arm(7) -> R_Arm(7)
+        L_Shoulder_Pitch = index 15, R_Shoulder_Pitch = index 22
+        """
+        l_sh_pitch = self.dof_pos[:, 15]
+        r_sh_pitch = self.dof_pos[:, 22]
+
+        # Phase drives leg swing. Arms should be opposite.
+        phase_signal = torch.sin(self.phase.squeeze(-1))
+
+        target_l = -0.6 * phase_signal  # Amplitude 0.6 rad
+        target_r = 0.6 * phase_signal
+
+        err_l = torch.square(l_sh_pitch - target_l)
+        err_r = torch.square(r_sh_pitch - target_r)
+
+        return torch.exp(-(err_l + err_r) / 0.2)
+
+    def _reward_arm_close_to_body(self):
+        """
+        Penalize T-pose (arms spread out) via Shoulder Roll.
+        L_Shoulder_Roll = index 16, R_Shoulder_Roll = index 23
+        """
+        l_sh_roll = self.dof_pos[:, 16]
+        r_sh_roll = self.dof_pos[:, 23]
+
+        # We want them close to 0 (arms along body)
+        return torch.exp(-(torch.square(l_sh_roll) + torch.square(r_sh_roll)) / 0.1)

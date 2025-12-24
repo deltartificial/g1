@@ -1,14 +1,14 @@
-.PHONY: run eval clean
+.PHONY: train eval clean
 
 # Training
-run:
-	PYTORCH_ENABLE_MPS_FALLBACK=1 python3 g1_train.py -B 2048 --max_iter 1000 --backend sb3
+train:
+	PYTHONUNBUFFERED=1 python3 -u g1_train.py -B 4096 --max_iter 1000
 
-run-fast:
-	PYTORCH_ENABLE_MPS_FALLBACK=1 python3 g1_train.py -B 1024 --max_iter 500 --backend sb3
+train-fast:
+	PYTHONUNBUFFERED=1 python3 -u g1_train.py -B 1024 --max_iter 500
 
-run-cpu:
-	python3 g1_train.py -B 512 --max_iter 1000 --backend sb3 --device cpu
+train-cpu:
+	PYTHONUNBUFFERED=1 python3 -u g1_train.py -B 512 --max_iter 1000 --device cpu
 
 # Evaluation
 eval:

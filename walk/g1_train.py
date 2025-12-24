@@ -256,7 +256,7 @@ def main():
 
     gs.init(logging_level="warning")
 
-    log_dir = os.path.join(os.path.dirname(__file__), "logs", args.exp_name)
+    log_dir = os.path.join(os.path.dirname(__file__), "checkpoints")
     env_cfg, obs_cfg, reward_cfg, command_cfg = get_cfgs()
     train_cfg = get_train_cfg(args.exp_name, args.max_iter)
 

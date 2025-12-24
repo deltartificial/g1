@@ -147,7 +147,7 @@ def main():
 
     gs.init()
 
-    log_dir = os.path.join(os.path.dirname(__file__), "logs", args.exp_name)
+    log_dir = os.path.join(os.path.dirname(__file__), "checkpoints")
 
     if not os.path.exists(log_dir):
         print(f"Error: Log directory not found: {log_dir}")

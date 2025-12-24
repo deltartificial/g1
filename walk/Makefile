@@ -22,4 +22,4 @@ eval-vel:
 
 # Cleanup
 clean:
-	rm -rf logs/__pycache__ __pycache__
+	rm -rf checkpoints/__pycache__ __pycache__

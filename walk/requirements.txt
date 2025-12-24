@@ -1,0 +1,16 @@
+# G1 Walking Training Dependencies
+
+# Genesis physics engine (install separately from https://github.com/Genesis-Embodied-AI/Genesis)
+# genesis-world
+
+# RL Libraries (choose one)
+# Option 1: rsl_rl (recommended, used by Genesis examples)
+# pip install git+https://github.com/leggedrobotics/rsl_rl.git
+
+# Option 2: stable-baselines3 (fallback)
+stable-baselines3>=2.0.0
+
+# Common dependencies
+torch>=2.0.0
+numpy>=1.20.0
+gymnasium>=0.28.0

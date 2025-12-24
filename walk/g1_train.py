@@ -141,6 +141,7 @@ def get_cfgs():
 
         "reward_scales": {
             # Primary: Velocity tracking
+            "tracking_lin_vel": 2.0,   # Increased for high-speed (was 1.5)
             "tracking_ang_vel": 0.5,
 
             # Balance rewards
@@ -175,10 +176,24 @@ def get_cfgs():
     return env_cfg, obs_cfg, reward_cfg, command_cfg
 
 
-def train_with_rsl_rl(env, train_cfg, log_dir, device, max_iter):
+def train_with_rsl_rl(env, train_cfg, log_dir, device, max_iter, resume_path=None):
     """Train using rsl_rl OnPolicyRunner (Genesis style)."""
     runner = OnPolicyRunner(env, train_cfg, log_dir, device=device)
-    runner.learn(num_learning_iterations=max_iter, init_at_random_ep_len=True)
+
+    total_iter = max_iter
+    # Handle resume with iteration offset
+    if resume_path:
+        runner.load(resume_path)
+        # Extract iteration number from filename (e.g., model_700.pt -> 700)
+        import re
+        match = re.search(r'model_(\d+)\.pt', resume_path)
+        if match:
+            start_iter = int(match.group(1))
+            runner.current_learning_iteration = start_iter
+            total_iter = start_iter + max_iter  # 700 + 500 = 1200
+            print(f"Resuming from iteration {start_iter}, training until {total_iter}")
+
+    runner.learn(num_learning_iterations=total_iter, init_at_random_ep_len=True)
 
 
 def train_with_sb3(env, log_dir, max_iter, device):
@@ -260,10 +275,8 @@ def main():
     env_cfg, obs_cfg, reward_cfg, command_cfg = get_cfgs()
     train_cfg = get_train_cfg(args.exp_name, args.max_iter)
 
-    # Handle resume
+    # Handle checkpoint directory
     if args.resume:
-        train_cfg["resume"] = True
-        train_cfg["resume_path"] = args.resume
         os.makedirs(log_dir, exist_ok=True)
     else:
         if os.path.exists(log_dir):
@@ -301,7 +314,7 @@ def main():
 
     # Train
     if use_rsl_rl:
-        train_with_rsl_rl(env, train_cfg, log_dir, args.device, args.max_iter)
+        train_with_rsl_rl(env, train_cfg, log_dir, args.device, args.max_iter, args.resume)
     else:
         train_with_sb3(env, log_dir, args.max_iter, args.device)
 

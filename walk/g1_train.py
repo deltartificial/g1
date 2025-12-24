@@ -140,36 +140,36 @@ def get_cfgs():
         "base_height_target": 0.72,  # Lower target for bent-knee stance
 
         "reward_scales": {
-            # Primary: Velocity tracking (now that we have balance)
-            "tracking_lin_vel": 1.5,   # Main reward source
+            # Primary: Velocity tracking
             "tracking_ang_vel": 0.5,
 
             # Balance rewards
             "alive": 1.0,              # Survival bonus
-            "orientation": -10.0,      # Tilt penalty (reduced, upper body helps)
+            "orientation": -10.0,      # Tilt penalty
             "base_height": -30.0,      # Height penalty
             "ang_vel_xy": -0.1,        # Reduce wobbling
             "lin_vel_z": -2.0,         # Reduce bouncing
 
             # Gait quality
-            "feet_air_time": 0.5,      # Encourage alternating feet
+            "feet_air_time": 1.0,      # Increased to lift feet higher (was 0.5)
+            "feet_spacing": 0.5,       # NEW: Anti-scissoring reward
             "symmetry": 0.2,           # Symmetric leg motion
 
-            # Regularization
-            "action_rate": -0.01,      # Smooth actions
-            "similar_to_default": -0.1, # Don't drift too far
+            # Regularization - relaxed for high-speed
+            "action_rate": -0.005,     # Relaxed (was -0.01)
+            "similar_to_default": -0.1,
             "dof_vel": -0.0001,
             "dof_acc": -1e-7,
-            "torques": -0.0001,
+            "torques": -0.00001,       # Relaxed (was -0.0001)
         },
     }
 
     command_cfg = {
         "num_commands": 3,
-        # Walking velocity commands
-        "lin_vel_x_range": [0.2, 0.5],  # Forward walking
-        "lin_vel_y_range": [-0.1, 0.1], # Slight lateral
-        "ang_vel_range": [-0.2, 0.2],   # Slight turning
+        # Walking velocity commands - extended for high-speed training
+        "lin_vel_x_range": [0.2, 1.0],  # Forward walking (was [0.2, 0.5])
+        "lin_vel_y_range": [-0.3, 0.3], # Lateral movement (was [-0.1, 0.1])
+        "ang_vel_range": [-0.5, 0.5],   # Turning (was [-0.2, 0.2])
     }
 
     return env_cfg, obs_cfg, reward_cfg, command_cfg
@@ -262,8 +262,9 @@ def main():
 
     # Handle resume
     if args.resume:
-        train_cfg["runner"]["resume"] = True
-        train_cfg["runner"]["resume_path"] = args.resume
+        train_cfg["resume"] = True
+        train_cfg["resume_path"] = args.resume
+        os.makedirs(log_dir, exist_ok=True)
     else:
         if os.path.exists(log_dir):
             shutil.rmtree(log_dir)

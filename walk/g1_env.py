@@ -518,6 +518,24 @@ class G1Env:
         symmetry_error = torch.sum(torch.square(left_dof - right_dof * mirror_mask), dim=1)
         return torch.exp(-symmetry_error / 0.5)
 
+    def _reward_feet_spacing(self):
+        """
+        Anti-scissoring reward: penalize feet too close together.
+        Uses hip roll angles to estimate lateral foot spacing.
+        Left hip roll (idx 1) and Right hip roll (idx 7).
+        """
+        left_hip_roll = self.dof_pos[:, 1]
+        right_hip_roll = self.dof_pos[:, 7]
+
+        # Spacing = difference between roll angles (wider stance = larger difference)
+        spacing = torch.abs(left_hip_roll - right_hip_roll)
+        target_spacing = 0.1  # radians
+
+        # Reward if spacing >= target, penalize if too narrow
+        return torch.where(spacing >= target_spacing,
+                          torch.ones_like(spacing) * 0.1,
+                          -torch.ones_like(spacing))
+
     def _reward_alive(self):
         """Small survival bonus."""
         return torch.ones(self.num_envs, device=self.device, dtype=gs.tc_float)

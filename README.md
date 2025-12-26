@@ -34,15 +34,16 @@ PYTHONUNBUFFERED=1 python3 -u g1_train.py -B 4096 --max_iter 1000
 ### Evaluation
 
 ```bash
-python3 g1_eval.py --ckpt 700 --debug --cmd_vel 0.8 0.0 0.0   # Fast forward walk
-python3 g1_eval.py --ckpt 700 --debug --cmd_vel 0.3 0.2 0.0   # Lateral walk
+python3 g1_eval.py --ckpt 700 --cmd_vel 0.8 0.0 0.0   # Fast forward walk
+python3 g1_eval.py --ckpt 700 --cmd_vel 0.3 0.2 0.0   # Lateral walk
 ```
 
 | Parameter | Description |
 |-----------|-------------|
 | `--ckpt` | Checkpoint iteration to load |
-| `--debug` | Print joint positions/velocities |
 | `--cmd_vel vx vy vyaw` | Velocity command (m/s, m/s, rad/s) |
+
+Joint positions, velocities and link XYZ coordinates are logged automatically every 10 steps.
 
 `cmd_vel` controls robot movement:
 - `vx`: forward/backward speed

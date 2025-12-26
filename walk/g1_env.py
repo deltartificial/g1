@@ -86,19 +86,19 @@ class G1Env:
         "right_wrist_yaw_joint",
     ]
 
-    # Default standing pose - using KNEES_BENT from g1_constants for stability
+    # Default standing pose - UPRIGHT VERSION (jambes quasi-droites, plus stable)
     DEFAULT_LEG_ANGLES = {
-        "left_hip_pitch_joint": -0.312,   # From KNEES_BENT_KEYFRAME
+        "left_hip_pitch_joint": -0.1,     # Était -0.312
         "left_hip_roll_joint": 0.0,
         "left_hip_yaw_joint": 0.0,
-        "left_knee_joint": 0.669,         # Deep knee bend for stability
-        "left_ankle_pitch_joint": -0.363,
+        "left_knee_joint": 0.3,           # Était 0.669 (squat) -> micro-flexion
+        "left_ankle_pitch_joint": -0.2,   # Était -0.363
         "left_ankle_roll_joint": 0.0,
-        "right_hip_pitch_joint": -0.312,
+        "right_hip_pitch_joint": -0.1,
         "right_hip_roll_joint": 0.0,
         "right_hip_yaw_joint": 0.0,
-        "right_knee_joint": 0.669,
-        "right_ankle_pitch_joint": -0.363,
+        "right_knee_joint": 0.3,
+        "right_ankle_pitch_joint": -0.2,
         "right_ankle_roll_joint": 0.0,
     }
 
@@ -507,21 +507,29 @@ class G1Env:
 
     def _reward_feet_spacing(self):
         """
-        Anti-scissoring reward: penalize feet too close together.
-        Uses hip roll angles to estimate lateral foot spacing.
-        Left hip roll (idx 1) and Right hip roll (idx 7).
+        Gaussian stance reward: target narrow human-like foot width.
+        Penalizes both too wide (cowboy) and too narrow (scissoring).
         """
         left_hip_roll = self.dof_pos[:, 1]
         right_hip_roll = self.dof_pos[:, 7]
 
-        # Spacing = difference between roll angles (wider stance = larger difference)
         spacing = torch.abs(left_hip_roll - right_hip_roll)
-        target_spacing = 0.1  # radians
+        target = 0.08  # Much narrower for human-like gait (was 0.15)
 
-        # Reward if spacing >= target, penalize if too narrow
-        return torch.where(spacing >= target_spacing,
-                          torch.ones_like(spacing) * 0.1,
-                          -torch.ones_like(spacing))
+        # Tight sigma for strict enforcement
+        return torch.exp(-torch.square(spacing - target) / 0.01)
+
+    def _reward_quiet_wrists(self):
+        """
+        Anti-hack: penalize frantic wrist/elbow movement.
+        Forces agent to use torso for balance, not hands.
+        """
+        # Wrist indices in arm chains
+        # L_Arm: 15-21 (Wrist ~ 19-21), R_Arm: 22-28 (Wrist ~ 26-28)
+        wrist_indices = [19, 20, 21, 26, 27, 28]
+
+        wrist_vel = self.dof_vel[:, wrist_indices]
+        return torch.sum(torch.square(wrist_vel), dim=1)
 
     def _reward_alive(self):
         """Small survival bonus."""
@@ -560,3 +568,10 @@ class G1Env:
 
         # We want them close to 0 (arms along body)
         return torch.exp(-(torch.square(l_sh_roll) + torch.square(r_sh_roll)) / 0.1)
+
+    def _reward_track_pitch(self):
+        """
+        Force upright torso: zero tolerance for backward lean (Matrix style).
+        Pitch is in base_euler[:, 1].
+        """
+        return torch.exp(-torch.square(self.base_euler[:, 1]) / 0.1)

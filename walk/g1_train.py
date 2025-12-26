@@ -77,49 +77,46 @@ def get_train_cfg(exp_name, max_iterations):
 
 def get_cfgs():
     """
-    Phase 2: Full Body Control (29 DOFs).
-    Natural walking with arm swing.
+    Phase 2: Full Body Control (29 DOFs) - STABILIZED VERSION
+    Fix: Reduced waist stiffness, higher spawn, relaxed termination.
     """
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     robot_path = os.path.join(base_dir, "..", "unitree_mujoco", "unitree_robots", "g1", "g1_29dof.xml")
 
     env_cfg = {
-        "num_actions": 29,  # Full body control
+        "num_actions": 29,
         "robot_path": robot_path,
 
-        # Differentiated PD gains
-        "leg_kp": 150.0,
-        "leg_kd": 15.0,
-        "waist_kp": 200.0,  # Rigid core
-        "waist_kd": 20.0,
-        "arm_kp": 50.0,     # Soft arms for swing
+        # --- GAINS PD (Compromis: assez rigide pour tenir, pas trop pour vibrer) ---
+        "leg_kp": 160.0,    # Remonté pour supporter le poids
+        "leg_kd": 10.0,
+        "waist_kp": 100.0,  # Compromis (200=vibrations, 60=ragdoll)
+        "waist_kd": 10.0,   # Plus d'amorti
+        "arm_kp": 50.0,     # Aide à l'équilibre
         "arm_kd": 5.0,
 
-        # Termination (slightly relaxed for upper body motion)
-        "termination_if_roll_greater_than": 0.4,
-        "termination_if_pitch_greater_than": 0.4,
-        "termination_if_height_lower_than": 0.55,
+        # --- FIX 2: Terminaisons Relaxées (Pour le début) ---
+        # On tolère jusqu'à ~45 degrés d'inclinaison avant de reset
+        "termination_if_roll_greater_than": 0.8,  # Était 0.4
+        "termination_if_pitch_greater_than": 0.8, # Était 0.4
+        "termination_if_height_lower_than": 0.30, # Était 0.55 (laisse le tomber à genoux sans mourir)
 
-        # Initialization
-        "base_init_pos": [0.0, 0.0, 0.76],
+        # --- Spawn ajusté pour jambes droites ---
+        # 0.82m car les jambes tendues = robot plus grand
+        "base_init_pos": [0.0, 0.0, 0.82],
         "base_init_quat": [1.0, 0.0, 0.0, 0.0],
 
         # Episode settings
         "episode_length_s": 20.0,
         "resampling_time_s": 4.0,
-
-        # Action scaling
         "action_scale": 0.25,
         "simulate_action_latency": True,
         "clip_actions": 10.0,
-
-        # Simulation
         "dt": 0.02,
         "substeps": 4,
     }
 
     obs_cfg = {
-        # 3 ang_vel + 3 grav + 3 cmd + 2 phase + 29 pos + 29 vel + 29 actions = 98
         "num_obs": 98,
         "obs_scales": {
             "lin_vel": 2.0,
@@ -131,39 +128,45 @@ def get_cfgs():
 
     reward_cfg = {
         "tracking_sigma": 0.25,
-        "base_height_target": 0.72,
+        "base_height_target": 0.80,  # Aligné avec spawn (0.82) pour jambes droites
 
         "reward_scales": {
-            # Performance
-            "tracking_lin_vel": 1.5,
+            # --- Performance ---
+            "tracking_lin_vel": 1.0,
             "tracking_ang_vel": 0.5,
-            "alive": 1.0,
-            "feet_air_time": 1.0,
+            "alive": 5.0,            # Priorité survie
+            "feet_air_time": 0.5,    # Réduit - d'abord tenir debout
 
-            # Style (NEW)
-            "arm_swing": 0.5,
-            "arm_close_to_body": 0.2,
+            # --- Posture (NOUVEAU: Guide vers la pose debout) ---
+            "similar_to_default": -0.5,  # ACTIVE: Pénalise l'écart à la pose de référence
+            "track_pitch": 1.5,      # Buste droit = priorité
 
-            # Stability
-            "orientation": -5.0,
-            "base_height": -10.0,
-            "lin_vel_z": -2.0,
-            "ang_vel_xy": -0.1,
+            # --- Style ---
+            "feet_spacing": 1.5,     # Réduit temporairement
+            "arm_swing": 0.3,        # Réduit - pas prioritaire
+            "arm_close_to_body": 0.3,
+            "quiet_wrists": -0.3,
 
-            # Regularization
-            "torques": -0.00001,
-            "action_rate": -0.005,
-            "dof_vel": -0.0001,
+            # --- Stabilité ---
+            "orientation": -2.0,
+            "base_height": -3.0,     # Réduit (aligné avec spawn maintenant)
+            "lin_vel_z": -1.0,
+            "ang_vel_xy": -0.2,
+
+            # --- Regularization ---
+            "torques": -0.0001,
+            "action_rate": -0.1,     # Relâché pour lui permettre de réagir
+            "dof_vel": -0.002,       # Réduit
             "dof_acc": -1e-7,
         },
     }
 
     command_cfg = {
         "num_commands": 3,
-        # Reduced speed range initially for coordination learning
-        "lin_vel_x_range": [0.0, 0.6],
-        "lin_vel_y_range": [-0.2, 0.2],
-        "ang_vel_range": [-0.4, 0.4],
+        # PHASE 0: Apprendre à tenir debout d'abord (vitesse quasi-nulle)
+        "lin_vel_x_range": [0.0, 0.15],  # Presque immobile
+        "lin_vel_y_range": [-0.05, 0.05],
+        "ang_vel_range": [-0.1, 0.1],
     }
 
     return env_cfg, obs_cfg, reward_cfg, command_cfg

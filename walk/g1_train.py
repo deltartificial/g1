@@ -134,29 +134,29 @@ def get_cfgs():
             # --- Performance ---
             "tracking_lin_vel": 1.0,
             "tracking_ang_vel": 0.5,
-            "alive": 5.0,            # Priorité survie
-            "feet_air_time": 0.5,    # Réduit - d'abord tenir debout
+            "alive": 10.0,           # DOUBLÉ: La vie doit être rentable
+            "feet_air_time": 0.5,
 
-            # --- Posture (NOUVEAU: Guide vers la pose debout) ---
-            "similar_to_default": -0.5,  # ACTIVE: Pénalise l'écart à la pose de référence
-            "track_pitch": 1.5,      # Buste droit = priorité
+            # --- Posture ---
+            "similar_to_default": -0.5,
+            "track_pitch": 1.5,
 
-            # --- Style ---
-            "feet_spacing": 1.5,     # Réduit temporairement
-            "arm_swing": 0.3,        # Réduit - pas prioritaire
+            # --- Style (Pression relâchée) ---
+            "feet_spacing": 1.5,
+            "arm_swing": 0.3,
             "arm_close_to_body": 0.3,
-            "quiet_wrists": -0.3,
+            "quiet_wrists": -0.1,    # Était -0.3: tolérer l'agitation des mains
 
-            # --- Stabilité ---
-            "orientation": -2.0,
-            "base_height": -3.0,     # Réduit (aligné avec spawn maintenant)
+            # --- Stabilité (Moins punitif) ---
+            "orientation": -1.0,     # Était -2.0
+            "base_height": -3.0,
             "lin_vel_z": -1.0,
-            "ang_vel_xy": -0.2,
+            "ang_vel_xy": -0.1,      # Était -0.2
 
-            # --- Regularization ---
+            # --- Regularization (Laisser vibrer si nécessaire) ---
             "torques": -0.0001,
-            "action_rate": -0.1,     # Relâché pour lui permettre de réagir
-            "dof_vel": -0.002,       # Réduit
+            "action_rate": -0.05,    # Était -0.1: divisé par 2
+            "dof_vel": -0.002,
             "dof_acc": -1e-7,
         },
     }

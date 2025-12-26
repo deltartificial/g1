@@ -23,17 +23,58 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Joint names for G1 legs (12 DOFs)
-LEG_JOINT_NAMES = [
-    "L_hip_pitch", "L_hip_roll", "L_hip_yaw", "L_knee", "L_ankle_pitch", "L_ankle_roll",
-    "R_hip_pitch", "R_hip_roll", "R_hip_yaw", "R_knee", "R_ankle_pitch", "R_ankle_roll",
+# Full joint names matching G1Env.ALL_DOF_NAMES order
+ALL_JOINT_NAMES = [
+    # Legs (12)
+    "left_hip_pitch_joint", "left_hip_roll_joint", "left_hip_yaw_joint",
+    "left_knee_joint", "left_ankle_pitch_joint", "left_ankle_roll_joint",
+    "right_hip_pitch_joint", "right_hip_roll_joint", "right_hip_yaw_joint",
+    "right_knee_joint", "right_ankle_pitch_joint", "right_ankle_roll_joint",
+    # Waist (3)
+    "waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint",
+    # Left arm (7)
+    "left_shoulder_pitch_joint", "left_shoulder_roll_joint", "left_shoulder_yaw_joint",
+    "left_elbow_joint", "left_wrist_roll_joint", "left_wrist_pitch_joint", "left_wrist_yaw_joint",
+    # Right arm (7)
+    "right_shoulder_pitch_joint", "right_shoulder_roll_joint", "right_shoulder_yaw_joint",
+    "right_elbow_joint", "right_wrist_roll_joint", "right_wrist_pitch_joint", "right_wrist_yaw_joint",
 ]
+
+# Short names for compact display
+SHORT_NAMES = {
+    "left_hip_pitch_joint": "L_hip_p", "left_hip_roll_joint": "L_hip_r", "left_hip_yaw_joint": "L_hip_y",
+    "left_knee_joint": "L_knee", "left_ankle_pitch_joint": "L_ank_p", "left_ankle_roll_joint": "L_ank_r",
+    "right_hip_pitch_joint": "R_hip_p", "right_hip_roll_joint": "R_hip_r", "right_hip_yaw_joint": "R_hip_y",
+    "right_knee_joint": "R_knee", "right_ankle_pitch_joint": "R_ank_p", "right_ankle_roll_joint": "R_ank_r",
+    "waist_yaw_joint": "waist_y", "waist_roll_joint": "waist_r", "waist_pitch_joint": "waist_p",
+    "left_shoulder_pitch_joint": "L_sh_p", "left_shoulder_roll_joint": "L_sh_r", "left_shoulder_yaw_joint": "L_sh_y",
+    "left_elbow_joint": "L_elbow", "left_wrist_roll_joint": "L_wr_r", "left_wrist_pitch_joint": "L_wr_p", "left_wrist_yaw_joint": "L_wr_y",
+    "right_shoulder_pitch_joint": "R_sh_p", "right_shoulder_roll_joint": "R_sh_r", "right_shoulder_yaw_joint": "R_sh_y",
+    "right_elbow_joint": "R_elbow", "right_wrist_roll_joint": "R_wr_r", "right_wrist_pitch_joint": "R_wr_p", "right_wrist_yaw_joint": "R_wr_y",
+}
+
+
+def get_link_positions(env):
+    """Get XYZ positions for key links (end effectors and key body parts)."""
+    link_positions = {}
+    key_links = [
+        "left_ankle_roll_link", "right_ankle_roll_link",  # Feet
+        "left_wrist_yaw_link", "right_wrist_yaw_link",    # Hands
+        "head_link", "pelvis",                             # Head & pelvis
+    ]
+    for link_name in key_links:
+        try:
+            link = env.robot.get_link(link_name)
+            pos = link.get_pos()[0].cpu().numpy()
+            link_positions[link_name] = pos
+        except Exception:
+            pass
+    return link_positions
 
 
 def print_debug_state(env, actions, step):
-    """Print detailed robot state for debugging."""
+    """Print detailed robot state with joint XYZ positions, names, and velocities."""
     pos = env.base_pos[0].cpu().numpy()
-    quat = env.base_quat[0].cpu().numpy()
     lin_vel = env.base_lin_vel[0].cpu().numpy()
     ang_vel = env.base_ang_vel[0].cpu().numpy()
     dof_pos = env.dof_pos[0].cpu().numpy()
@@ -42,31 +83,65 @@ def print_debug_state(env, actions, step):
 
     actions_np = actions[0].cpu().numpy() if isinstance(actions, torch.Tensor) else actions[0]
 
-    print(f"\n{'─' * 70}")
-    print(f"Step {step:4d} | Pos=({pos[0]:+.2f}, {pos[1]:+.2f}, {pos[2]:.2f})")
-    print(f"         | LinVel=({lin_vel[0]:+.2f}, {lin_vel[1]:+.2f}, {lin_vel[2]:+.2f}) m/s")
-    print(f"         | AngVel=({ang_vel[0]:+.2f}, {ang_vel[1]:+.2f}, {ang_vel[2]:+.2f}) rad/s")
-    print(f"         | ProjGrav=({proj_grav[0]:+.2f}, {proj_grav[1]:+.2f}, {proj_grav[2]:+.2f})")
+    print(f"\n{'═' * 90}")
+    print(f"  STEP {step:5d}")
+    print(f"{'═' * 90}")
 
-    # Joint info
+    # Base state
+    print(f"  BASE: pos=({pos[0]:+6.3f}, {pos[1]:+6.3f}, {pos[2]:6.3f}) m")
+    print(f"        lin_vel=({lin_vel[0]:+5.2f}, {lin_vel[1]:+5.2f}, {lin_vel[2]:+5.2f}) m/s")
+    print(f"        ang_vel=({ang_vel[0]:+5.2f}, {ang_vel[1]:+5.2f}, {ang_vel[2]:+5.2f}) rad/s")
+    print(f"        proj_grav=({proj_grav[0]:+5.2f}, {proj_grav[1]:+5.2f}, {proj_grav[2]:+5.2f})")
+
+    # Link XYZ positions
+    link_positions = get_link_positions(env)
+    if link_positions:
+        print(f"\n  {'─' * 86}")
+        print(f"  LINK POSITIONS (XYZ):")
+        for link_name, xyz in link_positions.items():
+            short = link_name.replace("_link", "").replace("_roll", "").replace("_yaw", "")
+            print(f"    {short:20s}: ({xyz[0]:+6.3f}, {xyz[1]:+6.3f}, {xyz[2]:6.3f}) m")
+
+    # Joint states table
+    print(f"\n  {'─' * 86}")
+    print(f"  JOINT STATES:")
+    print(f"  {'Joint':<25} {'Pos (rad)':>12} {'Vel (rad/s)':>12} {'Action':>12}")
+    print(f"  {'-'*25} {'-'*12} {'-'*12} {'-'*12}")
+
+    num_joints = min(len(dof_pos), len(ALL_JOINT_NAMES))
+    for i in range(num_joints):
+        joint_name = ALL_JOINT_NAMES[i]
+        short_name = SHORT_NAMES.get(joint_name, joint_name[:20])
+        act = actions_np[i] if i < len(actions_np) else 0.0
+        vel_marker = "█" if abs(dof_vel[i]) > 0.5 else "▓" if abs(dof_vel[i]) > 0.1 else " "
+        print(f"  {short_name:<25} {dof_pos[i]:+12.4f} {dof_vel[i]:+12.4f} {act:+12.4f} {vel_marker}")
+
+    # Summary stats
+    print(f"\n  {'─' * 86}")
     action_mag = np.sqrt(np.sum(actions_np ** 2))
-    max_idx = np.argmax(np.abs(actions_np))
-    max_name = LEG_JOINT_NAMES[max_idx] if max_idx < len(LEG_JOINT_NAMES) else f"j{max_idx}"
+    max_act_idx = np.argmax(np.abs(actions_np))
+    max_vel_idx = np.argmax(np.abs(dof_vel))
 
-    print(f"         | Action mag={action_mag:.3f}, max={max_name}({actions_np[max_idx]:+.3f})")
+    max_act_name = SHORT_NAMES.get(ALL_JOINT_NAMES[max_act_idx], f"j{max_act_idx}") if max_act_idx < len(ALL_JOINT_NAMES) else f"j{max_act_idx}"
+    max_vel_name = SHORT_NAMES.get(ALL_JOINT_NAMES[max_vel_idx], f"j{max_vel_idx}") if max_vel_idx < len(ALL_JOINT_NAMES) else f"j{max_vel_idx}"
+
+    print(f"  SUMMARY:")
+    print(f"    Action magnitude: {action_mag:.4f}")
+    print(f"    Max action: {max_act_name} = {actions_np[max_act_idx]:+.4f}")
+    print(f"    Max velocity: {max_vel_name} = {dof_vel[max_vel_idx]:+.4f} rad/s")
+
+    # Leg comparison
+    left_leg_vel = np.mean(np.abs(dof_vel[:6]))
+    right_leg_vel = np.mean(np.abs(dof_vel[6:12]))
+    print(f"    Leg activity: L={left_leg_vel:.3f} R={right_leg_vel:.3f} rad/s")
 
     # Moving joints
     moving = np.where(np.abs(dof_vel) > 0.1)[0]
     if len(moving) > 0:
-        names = [LEG_JOINT_NAMES[i] if i < len(LEG_JOINT_NAMES) else f"j{i}" for i in moving[:6]]
-        print(f"         | Moving: {', '.join(names)}" + ("..." if len(moving) > 6 else ""))
+        moving_names = [SHORT_NAMES.get(ALL_JOINT_NAMES[i], f"j{i}") for i in moving if i < len(ALL_JOINT_NAMES)]
+        print(f"    Active joints ({len(moving)}): {', '.join(moving_names[:8])}" + ("..." if len(moving) > 8 else ""))
     else:
-        print(f"         | Moving: NONE (robot statique!)")
-
-    # Left vs Right leg activity
-    left_vel = np.mean(np.abs(dof_vel[:6]))
-    right_vel = np.mean(np.abs(dof_vel[6:]))
-    print(f"         | L_leg={left_vel:.2f} R_leg={right_vel:.2f} rad/s")
+        print(f"    Active joints: NONE (robot static!)")
 
 # Try rsl_rl first
 RSL_RL_AVAILABLE = False
@@ -239,7 +314,7 @@ def main():
                 total_reward += rews.sum().item()
                 step_count += 1
 
-                if args.debug and step_count % 10 == 0:
+                if step_count % 10 == 0:
                     print_debug_state(env, actions, step_count)
 
                 if dones.any():
@@ -269,7 +344,7 @@ def main():
             total_reward += rewards.sum()
             step_count += 1
 
-            if args.debug and step_count % 10 == 0:
+            if step_count % 10 == 0:
                 print_debug_state(env, actions, step_count)
 
             if dones.any():

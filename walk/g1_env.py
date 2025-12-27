@@ -591,6 +591,14 @@ class G1Env:
         penalty = torch.where(error < 0, 3.0 * torch.square(error), torch.square(error))
         return torch.exp(-penalty / 0.02)  # Tight sigma
 
+    def _reward_waist_roll(self):
+        """
+        Penalize waist_roll deviation from 0 (keep torso centered).
+        Prevents lateral sway/limping during walking.
+        """
+        waist_r = self.dof_pos[:, 13]  # waist_roll joint
+        return torch.exp(-torch.square(waist_r) / 0.01)  # Tight sigma
+
     def _reward_arm_actions(self):
         """
         Penalize extreme actions on arm joints.

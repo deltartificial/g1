@@ -77,10 +77,10 @@ def get_train_cfg(exp_name, max_iterations):
 
 def get_cfgs():
     """
-    Phase 2: STYLE & POSTURE (Progressive)
-    - Physique : Inchangée (Validée)
-    - Objectif : Buste droit, jambes serrées, bras naturels
-    - Méthode : Pénalité asymétrique sur pitch arrière
+    Phase 2.3.4: ANTI-LIMP (Waist Roll Control)
+    - Fix: Robot penchait à gauche en marchant ("boitement")
+    - Solution: waist_roll reward pour garder le torse centré
+    - Objectif: Marche droite sans oscillation latérale
     """
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     robot_path = os.path.join(base_dir, "..", "unitree_mujoco", "unitree_robots", "g1", "g1_29dof.xml")
@@ -139,7 +139,8 @@ def get_cfgs():
 
             # --- POSTURE (Correction renforcée) ---
             "track_pitch": 3.0,       # Pitch global du pelvis
-            "waist_pitch": 8.0,       # RENFORCÉ: Force waist_p vers 0.15 (avant)
+            "waist_pitch": 8.0,       # Force waist_p vers 0.15 (avant)
+            "waist_roll": 5.0,        # NOUVEAU: Anti-boitement, garde torse centré
             "feet_spacing": 3.0,      # Jambes serrées
             "orientation": -2.0,      # Aide à rester droit
             "similar_to_default": -0.1,

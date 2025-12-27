@@ -92,8 +92,8 @@ def get_cfgs():
         # --- PHYSIQUE VALIDÉE ---
         "leg_kp": 160.0,
         "leg_kd": 10.0,
-        "waist_kp": 100.0,
-        "waist_kd": 10.0,
+        "waist_kp": 150.0,  # Renforcé pour tenir le torse droit
+        "waist_kd": 12.0,
         "arm_kp": 50.0,
         "arm_kd": 5.0,
 
@@ -139,7 +139,7 @@ def get_cfgs():
 
             # --- POSTURE (Correction renforcée) ---
             "track_pitch": 3.0,       # Pitch global du pelvis
-            "waist_pitch": 5.0,       # NOUVEAU: Le vrai problème - joint waist_p
+            "waist_pitch": 8.0,       # RENFORCÉ: Force waist_p vers 0.15 (avant)
             "feet_spacing": 3.0,      # Jambes serrées
             "orientation": -2.0,      # Aide à rester droit
             "similar_to_default": -0.1,

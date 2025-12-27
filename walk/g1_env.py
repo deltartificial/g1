@@ -102,11 +102,11 @@ class G1Env:
         "right_ankle_roll_joint": 0.0,
     }
 
-    # Upper body default pose - arms tucked, waist neutral
+    # Upper body default pose - arms tucked, waist FORWARD LEAN to counter backward drift
     DEFAULT_UPPER_BODY_ANGLES = {
         "waist_yaw_joint": 0.0,
         "waist_roll_joint": 0.0,
-        "waist_pitch_joint": 0.0,
+        "waist_pitch_joint": 0.15,  # Léger penché AVANT pour compenser
         "left_shoulder_pitch_joint": 0.2,
         "left_shoulder_roll_joint": 0.2,
         "left_shoulder_yaw_joint": 0.0,
@@ -581,13 +581,14 @@ class G1Env:
 
     def _reward_waist_pitch(self):
         """
-        Penalize waist_pitch joint deviation from 0.
-        This is the REAL torso lean - waist_p at index 14.
-        Asymmetric: backward lean (negative) punished 3x harder.
+        Penalize waist_pitch joint deviation from target (0.15 = slight forward lean).
+        Asymmetric: backward lean punished 3x harder.
         """
         waist_p = self.dof_pos[:, 14]  # waist_pitch joint
-        # Asymmetric: negative = backward lean = 3x penalty
-        penalty = torch.where(waist_p < 0, 3.0 * torch.square(waist_p), torch.square(waist_p))
+        target = 0.15  # Slight forward lean to counter backward drift
+        error = waist_p - target
+        # Asymmetric: error < 0 means leaning backward = 3x penalty
+        penalty = torch.where(error < 0, 3.0 * torch.square(error), torch.square(error))
         return torch.exp(-penalty / 0.02)  # Tight sigma
 
     def _reward_arm_actions(self):

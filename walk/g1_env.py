@@ -572,9 +572,18 @@ class G1Env:
     def _reward_track_pitch(self):
         """
         Force upright torso with ASYMMETRIC penalty.
-        Penalize backward lean (pitch < 0) 2x more than forward lean.
+        Penalize backward lean (pitch < 0) 3x more than forward lean.
         """
         pitch = self.base_euler[:, 1]
-        # Asymmetric: backward lean (negative pitch) is punished 2x harder
-        penalty = torch.where(pitch < 0, 2.0 * torch.square(pitch), torch.square(pitch))
-        return torch.exp(-penalty / 0.1)
+        # Asymmetric: backward lean (negative pitch) is punished 3x harder
+        penalty = torch.where(pitch < 0, 3.0 * torch.square(pitch), torch.square(pitch))
+        return torch.exp(-penalty / 0.05)  # Sigma réduit pour plus de sensibilité
+
+    def _reward_arm_actions(self):
+        """
+        Penalize extreme actions on arm joints.
+        Prevents the robot from using arms as counterweights.
+        Arm indices: 15-28 (L_arm: 15-21, R_arm: 22-28)
+        """
+        arm_actions = self.actions[:, 15:29]  # All arm joints
+        return torch.sum(torch.square(arm_actions), dim=1)

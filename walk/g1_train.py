@@ -111,7 +111,7 @@ def get_cfgs():
         "resampling_time_s": 4.0,
         "action_scale": 0.25,
         "simulate_action_latency": True,
-        "clip_actions": 10.0,
+        "clip_actions": 5.0,  # Réduit de 10.0: empêche les actions extrêmes sur les bras
         "dt": 0.02,
         "substeps": 4,
     }
@@ -137,19 +137,20 @@ def get_cfgs():
             "alive": 2.0,
             "feet_air_time": 2.0,
 
-            # --- POSTURE (Correction progressive) ---
-            "track_pitch": 3.0,       # x3: Buste droit (asymétrique dans g1_env.py)
+            # --- POSTURE (Correction renforcée) ---
+            "track_pitch": 5.0,       # x5: Buste droit (asymétrique x3 dans g1_env.py)
             "feet_spacing": 3.0,      # x3: Jambes serrées
-            "orientation": -2.0,      # Remonté: aide à rester droit
+            "orientation": -2.0,      # Aide à rester droit
             "similar_to_default": -0.1,
 
-            # --- BRAS ---
-            "arm_close_to_body": 1.0, # Modéré: bras suivront le buste
+            # --- BRAS (Anti-hack) ---
+            "arm_close_to_body": 1.5, # Renforcé: pas de bras tendu
             "arm_swing": 0.5,         # Balancement naturel
+            "arm_actions": -0.5,      # NOUVEAU: Pénalise les actions extrêmes sur les bras
 
             # --- RÉGULARISATION ---
-            "action_rate": -0.15,     # Entre -0.1 et -0.2
-            "quiet_wrists": -0.5,
+            "action_rate": -0.15,
+            "quiet_wrists": -0.8,     # Renforcé de -0.5
             "torques": -0.0002,
 
             # --- STABILITÉ ---

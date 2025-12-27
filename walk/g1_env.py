@@ -577,7 +577,18 @@ class G1Env:
         pitch = self.base_euler[:, 1]
         # Asymmetric: backward lean (negative pitch) is punished 3x harder
         penalty = torch.where(pitch < 0, 3.0 * torch.square(pitch), torch.square(pitch))
-        return torch.exp(-penalty / 0.05)  # Sigma réduit pour plus de sensibilité
+        return torch.exp(-penalty / 0.05)
+
+    def _reward_waist_pitch(self):
+        """
+        Penalize waist_pitch joint deviation from 0.
+        This is the REAL torso lean - waist_p at index 14.
+        Asymmetric: backward lean (negative) punished 3x harder.
+        """
+        waist_p = self.dof_pos[:, 14]  # waist_pitch joint
+        # Asymmetric: negative = backward lean = 3x penalty
+        penalty = torch.where(waist_p < 0, 3.0 * torch.square(waist_p), torch.square(waist_p))
+        return torch.exp(-penalty / 0.02)  # Tight sigma
 
     def _reward_arm_actions(self):
         """

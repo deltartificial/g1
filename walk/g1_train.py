@@ -138,8 +138,9 @@ def get_cfgs():
             "feet_air_time": 2.0,
 
             # --- POSTURE (Correction renforcée) ---
-            "track_pitch": 5.0,       # x5: Buste droit (asymétrique x3 dans g1_env.py)
-            "feet_spacing": 3.0,      # x3: Jambes serrées
+            "track_pitch": 3.0,       # Pitch global du pelvis
+            "waist_pitch": 5.0,       # NOUVEAU: Le vrai problème - joint waist_p
+            "feet_spacing": 3.0,      # Jambes serrées
             "orientation": -2.0,      # Aide à rester droit
             "similar_to_default": -0.1,
 

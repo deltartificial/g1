@@ -77,8 +77,10 @@ def get_train_cfg(exp_name, max_iterations):
 
 def get_cfgs():
     """
-    Phase 2: Full Body Control (29 DOFs) - STABILIZED VERSION
-    Fix: Reduced waist stiffness, higher spawn, relaxed termination.
+    Phase 1: REAL WALKING (Smooth & Dynamic)
+    - Physique : VALIDÉE (Gains Phase 0)
+    - Objectif : Avancer (0.25 - 0.6 m/s)
+    - Contrainte : SILENCE (Pénalités vibrations x4)
     """
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     robot_path = os.path.join(base_dir, "..", "unitree_mujoco", "unitree_robots", "g1", "g1_29dof.xml")
@@ -87,26 +89,24 @@ def get_cfgs():
         "num_actions": 29,
         "robot_path": robot_path,
 
-        # --- GAINS PD (Compromis: assez rigide pour tenir, pas trop pour vibrer) ---
-        "leg_kp": 160.0,    # Remonté pour supporter le poids
+        # --- PHYSIQUE VALIDÉE (Ne pas toucher) ---
+        "leg_kp": 160.0,
         "leg_kd": 10.0,
-        "waist_kp": 100.0,  # Compromis (200=vibrations, 60=ragdoll)
-        "waist_kd": 10.0,   # Plus d'amorti
-        "arm_kp": 50.0,     # Aide à l'équilibre
+        "waist_kp": 100.0,
+        "waist_kd": 10.0,
+        "arm_kp": 50.0,
         "arm_kd": 5.0,
 
-        # --- FIX 2: Terminaisons Relaxées (Pour le début) ---
-        # On tolère jusqu'à ~45 degrés d'inclinaison avant de reset
-        "termination_if_roll_greater_than": 0.8,  # Était 0.4
-        "termination_if_pitch_greater_than": 0.8, # Était 0.4
-        "termination_if_height_lower_than": 0.30, # Était 0.55 (laisse le tomber à genoux sans mourir)
+        # --- Terminaisons ---
+        "termination_if_roll_greater_than": 0.8,
+        "termination_if_pitch_greater_than": 0.8,
+        "termination_if_height_lower_than": 0.60,  # Remonté: ne plus s'écraser
 
-        # --- Spawn ajusté pour jambes droites ---
-        # 0.82m car les jambes tendues = robot plus grand
+        # --- Spawn (Validé) ---
         "base_init_pos": [0.0, 0.0, 0.82],
         "base_init_quat": [1.0, 0.0, 0.0, 0.0],
 
-        # Episode settings
+        # Settings
         "episode_length_s": 20.0,
         "resampling_time_s": 4.0,
         "action_scale": 0.25,
@@ -128,45 +128,41 @@ def get_cfgs():
 
     reward_cfg = {
         "tracking_sigma": 0.25,
-        "base_height_target": 0.80,  # Aligné avec spawn (0.82) pour jambes droites
+        "base_height_target": 0.80,
 
         "reward_scales": {
-            # --- Performance ---
-            "tracking_lin_vel": 1.0,
-            "tracking_ang_vel": 0.5,
-            "alive": 10.0,           # DOUBLÉ: La vie doit être rentable
-            "feet_air_time": 0.5,
+            # --- PERFORMANCE (Le Moteur) ---
+            "tracking_lin_vel": 3.0,  # BOOM: Priorité n°1 (était 1.0)
+            "tracking_ang_vel": 1.5,
+            "alive": 2.0,             # Baissé (était 10): survivre ne suffit plus
+            "feet_air_time": 2.0,     # BOOM: Lever les pieds
 
-            # --- Posture ---
-            "similar_to_default": -0.5,
-            "track_pitch": 1.5,
+            # --- POSTURE ---
+            "similar_to_default": -0.1,  # Relâché pour laisser les jambes bouger
+            "track_pitch": 1.0,
 
-            # --- Style (Pression relâchée) ---
-            "feet_spacing": 1.5,
-            "arm_swing": 0.3,
-            "arm_close_to_body": 0.3,
-            "quiet_wrists": -0.1,    # Était -0.3: tolérer l'agitation des mains
+            # --- STYLE & SILENCE (Anti-Vibration) ---
+            "action_rate": -0.2,      # PUNITIF: x4, interdit de vibrer
+            "quiet_wrists": -1.0,     # PUNITIF: x10, arrête de mouliner
+            "torques": -0.0002,       # Doublé: économie d'énergie
 
-            # --- Stabilité (Moins punitif) ---
-            "orientation": -1.0,     # Était -2.0
-            "base_height": -3.0,
-            "lin_vel_z": -1.0,
-            "ang_vel_xy": -0.1,      # Était -0.2
-
-            # --- Regularization (Laisser vibrer si nécessaire) ---
-            "torques": -0.0001,
-            "action_rate": -0.05,    # Était -0.1: divisé par 2
-            "dof_vel": -0.002,
+            # --- STABILITÉ ---
+            "orientation": -1.0,
+            "base_height": -1.0,      # Moins grave s'il pompe en marchant
+            "lin_vel_z": -0.5,
+            "ang_vel_xy": -0.1,
+            "feet_spacing": 1.0,
+            "dof_vel": -0.005,
             "dof_acc": -1e-7,
         },
     }
 
     command_cfg = {
         "num_commands": 3,
-        # PHASE 0: Apprendre à tenir debout d'abord (vitesse quasi-nulle)
-        "lin_vel_x_range": [0.0, 0.15],  # Presque immobile
-        "lin_vel_y_range": [-0.05, 0.05],
-        "ang_vel_range": [-0.1, 0.1],
+        # PHASE 1: Vraie marche - surplace interdit
+        "lin_vel_x_range": [0.25, 0.6],
+        "lin_vel_y_range": [-0.1, 0.1],
+        "ang_vel_range": [-0.2, 0.2],
     }
 
     return env_cfg, obs_cfg, reward_cfg, command_cfg

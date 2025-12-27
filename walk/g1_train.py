@@ -77,10 +77,10 @@ def get_train_cfg(exp_name, max_iterations):
 
 def get_cfgs():
     """
-    Phase 1: REAL WALKING (Smooth & Dynamic)
-    - Physique : VALIDÉE (Gains Phase 0)
-    - Objectif : Avancer (0.25 - 0.6 m/s)
-    - Contrainte : SILENCE (Pénalités vibrations x4)
+    Phase 2: STYLE & POSTURE (Progressive)
+    - Physique : Inchangée (Validée)
+    - Objectif : Buste droit, jambes serrées, bras naturels
+    - Méthode : Pénalité asymétrique sur pitch arrière
     """
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     robot_path = os.path.join(base_dir, "..", "unitree_mujoco", "unitree_robots", "g1", "g1_29dof.xml")
@@ -89,7 +89,7 @@ def get_cfgs():
         "num_actions": 29,
         "robot_path": robot_path,
 
-        # --- PHYSIQUE VALIDÉE (Ne pas toucher) ---
+        # --- PHYSIQUE VALIDÉE ---
         "leg_kp": 160.0,
         "leg_kd": 10.0,
         "waist_kp": 100.0,
@@ -100,9 +100,9 @@ def get_cfgs():
         # --- Terminaisons ---
         "termination_if_roll_greater_than": 0.8,
         "termination_if_pitch_greater_than": 0.8,
-        "termination_if_height_lower_than": 0.60,  # Remonté: ne plus s'écraser
+        "termination_if_height_lower_than": 0.60,
 
-        # --- Spawn (Validé) ---
+        # --- Spawn ---
         "base_init_pos": [0.0, 0.0, 0.82],
         "base_init_quat": [1.0, 0.0, 0.0, 0.0],
 
@@ -131,27 +131,31 @@ def get_cfgs():
         "base_height_target": 0.80,
 
         "reward_scales": {
-            # --- PERFORMANCE (Le Moteur) ---
-            "tracking_lin_vel": 3.0,  # BOOM: Priorité n°1 (était 1.0)
+            # --- PERFORMANCE (Moteur validé) ---
+            "tracking_lin_vel": 3.0,
             "tracking_ang_vel": 1.5,
-            "alive": 2.0,             # Baissé (était 10): survivre ne suffit plus
-            "feet_air_time": 2.0,     # BOOM: Lever les pieds
+            "alive": 2.0,
+            "feet_air_time": 2.0,
 
-            # --- POSTURE ---
-            "similar_to_default": -0.1,  # Relâché pour laisser les jambes bouger
-            "track_pitch": 1.0,
+            # --- POSTURE (Correction progressive) ---
+            "track_pitch": 3.0,       # x3: Buste droit (asymétrique dans g1_env.py)
+            "feet_spacing": 3.0,      # x3: Jambes serrées
+            "orientation": -2.0,      # Remonté: aide à rester droit
+            "similar_to_default": -0.1,
 
-            # --- STYLE & SILENCE (Anti-Vibration) ---
-            "action_rate": -0.2,      # PUNITIF: x4, interdit de vibrer
-            "quiet_wrists": -1.0,     # PUNITIF: x10, arrête de mouliner
-            "torques": -0.0002,       # Doublé: économie d'énergie
+            # --- BRAS ---
+            "arm_close_to_body": 1.0, # Modéré: bras suivront le buste
+            "arm_swing": 0.5,         # Balancement naturel
+
+            # --- RÉGULARISATION ---
+            "action_rate": -0.15,     # Entre -0.1 et -0.2
+            "quiet_wrists": -0.5,
+            "torques": -0.0002,
 
             # --- STABILITÉ ---
-            "orientation": -1.0,
-            "base_height": -1.0,      # Moins grave s'il pompe en marchant
+            "base_height": -1.0,
             "lin_vel_z": -0.5,
             "ang_vel_xy": -0.1,
-            "feet_spacing": 1.0,
             "dof_vel": -0.005,
             "dof_acc": -1e-7,
         },
@@ -159,8 +163,8 @@ def get_cfgs():
 
     command_cfg = {
         "num_commands": 3,
-        # PHASE 1: Vraie marche - surplace interdit
-        "lin_vel_x_range": [0.25, 0.6],
+        # Vitesse maintenue
+        "lin_vel_x_range": [0.3, 0.6],
         "lin_vel_y_range": [-0.1, 0.1],
         "ang_vel_range": [-0.2, 0.2],
     }

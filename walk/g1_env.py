@@ -571,7 +571,10 @@ class G1Env:
 
     def _reward_track_pitch(self):
         """
-        Force upright torso: zero tolerance for backward lean (Matrix style).
-        Pitch is in base_euler[:, 1].
+        Force upright torso with ASYMMETRIC penalty.
+        Penalize backward lean (pitch < 0) 2x more than forward lean.
         """
-        return torch.exp(-torch.square(self.base_euler[:, 1]) / 0.1)
+        pitch = self.base_euler[:, 1]
+        # Asymmetric: backward lean (negative pitch) is punished 2x harder
+        penalty = torch.where(pitch < 0, 2.0 * torch.square(pitch), torch.square(pitch))
+        return torch.exp(-penalty / 0.1)
